@@ -1,0 +1,2 @@
+fn(AppState, CreateNoteReq) -> impl Future<Output = ()> {handlers::create_note}
+fn(AppState, CreateNoteReq) -> impl Future<Output = ()> {handlers::create_note}: Handler<_, _>

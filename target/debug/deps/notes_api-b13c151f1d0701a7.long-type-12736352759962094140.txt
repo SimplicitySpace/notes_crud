@@ -1,0 +1,2 @@
+fn(Arc<std::sync::Mutex<Vec<Note>>>, axum::extract::Path<usize>) -> impl Future<Output = Result<axum::Json<Note>, StatusCode>> {handlers::read_note}
+fn(Arc<std::sync::Mutex<Vec<Note>>>, axum::extract::Path<usize>) -> impl Future<Output = Result<axum::Json<Note>, StatusCode>> {handlers::read_note}: Handler<_, _>

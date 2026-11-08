@@ -1,0 +1,1 @@
+fn({type error}, Json<CreateNoteReq>) -> impl Future<Output = ()> {handlers::create_note}: Handler<_, _>

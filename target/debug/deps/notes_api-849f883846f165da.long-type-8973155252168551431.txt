@@ -1,0 +1,2 @@
+fn(State<AppState>, Json<CreateNoteReq>) -> impl Future<Output = (StatusCode, Json<Note>)> {handlers::create_note}
+fn(State<AppState>, Json<CreateNoteReq>) -> impl Future<Output = (StatusCode, Json<Note>)> {handlers::create_note}: Handler<_, _>
