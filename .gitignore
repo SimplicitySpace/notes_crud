@@ -1,0 +1,17 @@
+# Rust build output (any crate in this repo)
+target/
+
+# Rust backup files from rustfmt
+**/*.rs.bk
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Environment / secrets
+.env
+.env.*
