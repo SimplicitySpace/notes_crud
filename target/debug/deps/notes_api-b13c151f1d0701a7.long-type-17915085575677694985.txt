@@ -1,2 +1,0 @@
-fn({type error}, axum::Json<CreateNoteReq>) -> impl Future<Output = ()> {handlers::create_note}
-fn({type error}, axum::Json<CreateNoteReq>) -> impl Future<Output = ()> {handlers::create_note}: Handler<_, _>

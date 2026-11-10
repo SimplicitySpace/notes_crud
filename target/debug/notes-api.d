@@ -1,1 +1,0 @@
-/Users/payaza/rustprojects/notes-api/target/debug/notes-api: /Users/payaza/rustprojects/notes-api/src/handlers.rs /Users/payaza/rustprojects/notes-api/src/main.rs /Users/payaza/rustprojects/notes-api/src/state.rs /Users/payaza/rustprojects/notes-api/src/types.rs

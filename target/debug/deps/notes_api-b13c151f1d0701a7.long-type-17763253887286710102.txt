@@ -1,2 +1,0 @@
-fn(State<AppState>, axum::Json<CreateNoteReq>) -> impl Future<Output = (StatusCode, axum::Json<Note>)> {handlers::create_note}
-fn(State<AppState>, axum::Json<CreateNoteReq>) -> impl Future<Output = (StatusCode, axum::Json<Note>)> {handlers::create_note}: Handler<_, _>
