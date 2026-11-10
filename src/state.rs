@@ -1,8 +1,6 @@
-use std::sync::{Arc, Mutex};
-
-use crate::types::Note;
+use sqlx::SqlitePool;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub notes: Arc<Mutex<Vec<Note>>>,
+    pub notes: SqlitePool,
 }

@@ -3,23 +3,50 @@ use std::{
     vec,
 };
 
-use axum::{
-    Router,
-    routing::{delete, get},
-};
-
 use crate::{
     handlers::{create_note, delete_note, get_all_notes, read_note, update_note},
     state::AppState,
 };
+use axum::{
+    Router,
+    routing::{delete, get},
+};
+use sqlx::SqlitePool;
+use uuid::Uuid;
 mod handlers;
 mod state;
 mod types;
 #[tokio::main]
 async fn main() {
-    let state = AppState {
-        notes: Arc::new(Mutex::new(vec![])),
+    dotenvy::dotenv().ok();
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let connection = SqlitePool::connect(&database_url).await;
+
+    let pool = match connection {
+        Ok(sql) => {
+            sqlx::query(
+                "CREATE TABLE IF NOT EXISTS notes (
+    id            BLOB PRIMARY KEY,
+    title         TEXT NOT NULL,
+    subtitle      TEXT NOT NULL,
+    texts         TEXT NOT NULL,
+    footnote      TEXT NOT NULL,
+    author        TEXT NOT NULL,
+    category      TEXT NOT NULL,
+    created_at    TEXT NOT NULL,
+    last_modified TEXT NOT NULL
+) STRICT
+",
+            )
+            .execute(&sql)
+            .await
+            .expect("failed to create users table");
+            sql
+        }
+        Err(e) => panic!("failed to connect to database: {e}"),
     };
+
+    let state = AppState { notes: pool };
     let app: Router = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .route("/notes", get(get_all_notes).post(create_note))

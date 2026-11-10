@@ -1,5 +1,3 @@
-use std::{sync::Arc, usize};
-
 use crate::{
     state::AppState,
     types::{CreateNoteReq, Note, UpdateNoteReq},
@@ -10,106 +8,122 @@ use axum::{
     http::StatusCode,
 };
 use chrono::{self, Utc};
+use uuid::Uuid;
 
 pub struct Handlers {}
 
 #[axum::debug_handler]
 pub async fn create_note(
-    state: State<AppState>,
-    request: Json<CreateNoteReq>,
-) -> (StatusCode, Json<Note>) {
+    State(state): State<AppState>,
+    Json(request): Json<CreateNoteReq>,
+) -> Result<(StatusCode, Json<Note>), StatusCode> {
     let now = Utc::now();
-    let unboxed_state = state.0;
-    let notes = unboxed_state.notes;
-    let req = request.0;
-    let mut lock: std::sync::MutexGuard<'_, Vec<Note>> = notes.lock().unwrap();
-    let lenghth = lock.len();
-    let curr_id: usize = lenghth + 1;
+
+    let id = Uuid::now_v7();
     let note = Note {
         created_at: now.to_string(),
         last_modified: now.to_string(),
-        title: req.title,
-        subtitle: req.subtitle,
-        texts: req.texts,
-        footnote: req.footnote,
-        author: req.author,
-        category: req.category,
-        id: curr_id,
+        title: request.title,
+        subtitle: request.subtitle,
+        texts: request.texts,
+        footnote: request.footnote,
+        author: request.author,
+        category: request.category,
+        id: id,
     };
-    lock.push(note.clone());
-    (StatusCode::CREATED, axum::Json(note))
+    sqlx::query(
+        "INSERT INTO notes 
+            (id, title, subtitle, texts, footnote, author, category, created_at, last_modified)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&note.id)
+    .bind(&note.title)
+    .bind(&note.subtitle)
+    .bind(&note.texts)
+    .bind(&note.footnote)
+    .bind(&note.author)
+    .bind(&note.category)
+    .bind(&note.created_at)
+    .bind(&note.last_modified)
+    .execute(&state.notes)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok((StatusCode::CREATED, axum::Json(note)))
 }
 #[axum::debug_handler]
 pub async fn read_note(
-    state: State<AppState>,
-    Path(note_id): Path<usize>,
+    State(state): State<AppState>,
+    Path(note_id): Path<Uuid>,
 ) -> Result<Json<Note>, StatusCode> {
-    let unboxed_state = state.0;
-    let notes = unboxed_state.notes;
-    let lock: std::sync::MutexGuard<'_, Vec<Note>> = notes.lock().unwrap();
+    let u_note: Result<Option<Note>, sqlx::Error> =
+        sqlx::query_as::<_, Note>("SELECT * FROM notes WHERE id = ?")
+            .bind(note_id)
+            .fetch_optional(&state.notes)
+            .await;
 
-    for n in lock.iter() {
-        if n.id == note_id {
-            return Ok(Json(n.clone()));
-        }
-    }
-    Err(StatusCode::NOT_FOUND)
+    let note = match u_note {
+        Ok(Some(n)) => n,
+        Ok(None) => return Err(StatusCode::NOT_FOUND),
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+    Ok(Json(note))
 }
 
 #[axum::debug_handler]
-pub async fn get_all_notes(State(state): State<AppState>) -> Json<Vec<Note>> {
-    let notes = state.notes.lock().unwrap();
-    Json(notes.clone())
+pub async fn get_all_notes(State(state): State<AppState>) -> Result<Json<Vec<Note>>, StatusCode> {
+    let notes = sqlx::query_as::<_, Note>("SELECT * FROM notes ORDER BY id")
+        .fetch_all(&state.notes)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(notes))
 }
 #[axum::debug_handler]
 pub async fn update_note(
     State(state): State<AppState>,
-    Path(note_id): Path<usize>,
+    Path(note_id): Path<Uuid>,
     Json(update): Json<UpdateNoteReq>,
 ) -> Result<Json<Note>, StatusCode> {
-    let mut notes = state.notes.lock().unwrap();
+    let now = Utc::now().to_rfc3339();
 
-    let existing = notes
-        .iter_mut()
-        .find(|n| n.id == note_id)
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let note = sqlx::query_as::<_, Note>(
+        "UPDATE notes SET
+            title         = COALESCE(?, title),
+            subtitle      = COALESCE(?, subtitle),
+            texts         = COALESCE(?, texts),
+            footnote      = COALESCE(?, footnote),
+            author        = COALESCE(?, author),
+            category      = COALESCE(?, category),
+            last_modified = ?
+         WHERE id = ?
+         RETURNING *",
+    )
+    .bind(update.title) // Option<String>
+    .bind(update.subtitle)
+    .bind(update.texts)
+    .bind(update.footnote)
+    .bind(update.author)
+    .bind(update.category)
+    .bind(now) // last_modified
+    .bind(note_id) // WHERE id = ?
+    .fetch_optional(&state.notes)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Some(title) = update.title {
-        existing.title = title;
-    }
-    if let Some(subtitle) = update.subtitle {
-        existing.subtitle = subtitle;
-    }
-    if let Some(texts) = update.texts {
-        existing.texts = texts;
-    }
-    if let Some(footnote) = update.footnote {
-        existing.footnote = footnote;
-    }
-    if let Some(author) = update.author {
-        existing.author = author;
-    }
-    if let Some(category) = update.category {
-        existing.category = category;
-    }
-    existing.last_modified = Utc::now().to_string();
-
-    Ok(Json(existing.clone()))
+    note.map(Json).ok_or(StatusCode::NOT_FOUND)
 }
+
 #[axum::debug_handler]
-pub async fn delete_note(State(state): State<AppState>, Path(note_id): Path<usize>) -> StatusCode {
-    let mut notes = state.notes.lock().unwrap();
+pub async fn delete_note(State(state): State<AppState>, Path(note_id): Path<Uuid>) -> StatusCode {
+    let result = sqlx::query("DELETE FROM notes WHERE id = ?")
+        .bind(note_id)
+        .execute(&state.notes)
+        .await;
 
-    let index = notes
-        .iter()
-        .position(|n| n.id == note_id)
-        .ok_or(StatusCode::NOT_FOUND);
-
-    match index {
-        Ok(i) => {
-            notes.remove(i);
-            StatusCode::NO_CONTENT
-        }
-        Err(e) => e,
+    match result {
+        Ok(r) if r.rows_affected() == 0 => StatusCode::NOT_FOUND,
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }

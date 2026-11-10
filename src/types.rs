@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Note {
     pub created_at: String,
     pub last_modified: String,
@@ -10,7 +11,7 @@ pub struct Note {
     pub footnote: String,
     pub author: String,
     pub category: String,
-    pub id: usize,
+    pub id: Uuid,
 }
 #[derive(Debug, Deserialize)]
 pub struct CreateNoteReq {
