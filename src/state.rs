@@ -1,6 +1,6 @@
-use sqlx::SqlitePool;
 
+use crate::note_repo::NoteRepo;
 #[derive(Clone)]
 pub struct AppState {
-    pub notes: SqlitePool,
+    pub notes: NoteRepo,
 }

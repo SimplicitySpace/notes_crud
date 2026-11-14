@@ -1,6 +1,8 @@
+use crate::note_repo::{self, NoteRepo};
+use crate::note_service::{self, Note};
 use crate::{
     state::AppState,
-    types::{CreateNoteReq, Note, UpdateNoteReq},
+    types::{CreateNoteReq, UpdateNoteReq},
 };
 use axum::{
     Json,
@@ -10,59 +12,27 @@ use axum::{
 use chrono::{self, Utc};
 use uuid::Uuid;
 
-pub struct Handlers {}
-
 #[axum::debug_handler]
 pub async fn create_note(
     State(state): State<AppState>,
     Json(request): Json<CreateNoteReq>,
-) -> Result<(StatusCode, Json<Note>), StatusCode> {
-    let now = Utc::now();
-
-    let id = Uuid::now_v7();
-    let note = Note {
-        created_at: now.to_string(),
-        last_modified: now.to_string(),
-        title: request.title,
-        subtitle: request.subtitle,
-        texts: request.texts,
-        footnote: request.footnote,
-        author: request.author,
-        category: request.category,
-        id: id,
+) -> (StatusCode, Json<Note>) {
+    let note = Note::new(request);
+    let result = NoteRepo::save_note(&state.notes, note.clone()).await;
+    let val = match result {
+        Ok(ok) => (StatusCode::CREATED, axum::Json(note.clone())),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(note)),
     };
-    sqlx::query(
-        "INSERT INTO notes 
-            (id, title, subtitle, texts, footnote, author, category, created_at, last_modified)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    )
-    .bind(&note.id)
-    .bind(&note.title)
-    .bind(&note.subtitle)
-    .bind(&note.texts)
-    .bind(&note.footnote)
-    .bind(&note.author)
-    .bind(&note.category)
-    .bind(&note.created_at)
-    .bind(&note.last_modified)
-    .execute(&state.notes)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok((StatusCode::CREATED, axum::Json(note)))
+    return val;
 }
 #[axum::debug_handler]
 pub async fn read_note(
     State(state): State<AppState>,
     Path(note_id): Path<Uuid>,
 ) -> Result<Json<Note>, StatusCode> {
-    let u_note: Result<Option<Note>, sqlx::Error> =
-        sqlx::query_as::<_, Note>("SELECT * FROM notes WHERE id = ?")
-            .bind(note_id)
-            .fetch_optional(&state.notes)
-            .await;
+    let n = NoteRepo::read_note(&state.notes, note_id).await;
 
-    let note = match u_note {
+    let note = match n {
         Ok(Some(n)) => n,
         Ok(None) => return Err(StatusCode::NOT_FOUND),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -72,8 +42,7 @@ pub async fn read_note(
 
 #[axum::debug_handler]
 pub async fn get_all_notes(State(state): State<AppState>) -> Result<Json<Vec<Note>>, StatusCode> {
-    let notes = sqlx::query_as::<_, Note>("SELECT * FROM notes ORDER BY id")
-        .fetch_all(&state.notes)
+    let notes = NoteRepo::get_all_notes(&state.notes)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -87,39 +56,16 @@ pub async fn update_note(
 ) -> Result<Json<Note>, StatusCode> {
     let now = Utc::now().to_rfc3339();
 
-    let note = sqlx::query_as::<_, Note>(
-        "UPDATE notes SET
-            title         = COALESCE(?, title),
-            subtitle      = COALESCE(?, subtitle),
-            texts         = COALESCE(?, texts),
-            footnote      = COALESCE(?, footnote),
-            author        = COALESCE(?, author),
-            category      = COALESCE(?, category),
-            last_modified = ?
-         WHERE id = ?
-         RETURNING *",
-    )
-    .bind(update.title) // Option<String>
-    .bind(update.subtitle)
-    .bind(update.texts)
-    .bind(update.footnote)
-    .bind(update.author)
-    .bind(update.category)
-    .bind(now) // last_modified
-    .bind(note_id) // WHERE id = ?
-    .fetch_optional(&state.notes)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let note = NoteRepo::update_note(&state.notes, note_id, update, now)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     note.map(Json).ok_or(StatusCode::NOT_FOUND)
 }
 
 #[axum::debug_handler]
 pub async fn delete_note(State(state): State<AppState>, Path(note_id): Path<Uuid>) -> StatusCode {
-    let result = sqlx::query("DELETE FROM notes WHERE id = ?")
-        .bind(note_id)
-        .execute(&state.notes)
-        .await;
+    let result = NoteRepo::delete_note(&state.notes, note_id).await;
 
     match result {
         Ok(r) if r.rows_affected() == 0 => StatusCode::NOT_FOUND,

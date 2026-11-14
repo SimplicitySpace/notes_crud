@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
     handlers::{create_note, delete_note, get_all_notes, read_note, update_note},
+    note_repo::NoteRepo,
     state::AppState,
 };
 use axum::{
@@ -12,8 +13,9 @@ use axum::{
     routing::{delete, get},
 };
 use sqlx::SqlitePool;
-use uuid::Uuid;
 mod handlers;
+mod note_repo;
+mod note_service;
 mod state;
 mod types;
 #[tokio::main]
@@ -46,7 +48,9 @@ async fn main() {
         Err(e) => panic!("failed to connect to database: {e}"),
     };
 
-    let state = AppState { notes: pool };
+    let state = AppState {
+        notes: NoteRepo::new(pool),
+    };
     let app: Router = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .route("/notes", get(get_all_notes).post(create_note))

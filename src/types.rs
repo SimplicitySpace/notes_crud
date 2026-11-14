@@ -1,18 +1,5 @@
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+use serde::Deserialize;
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-pub struct Note {
-    pub created_at: String,
-    pub last_modified: String,
-    pub title: String,
-    pub subtitle: String,
-    pub texts: String,
-    pub footnote: String,
-    pub author: String,
-    pub category: String,
-    pub id: Uuid,
-}
 #[derive(Debug, Deserialize)]
 pub struct CreateNoteReq {
     pub title: String,
