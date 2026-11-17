@@ -1,6 +1,6 @@
 use crate::note_service::Note;
 use crate::types::UpdateNoteReq;
-use sqlx::{SqlitePool, query};
+use sqlx::{SqlitePool};
 use uuid::Uuid;
 
 #[derive(Clone)]
