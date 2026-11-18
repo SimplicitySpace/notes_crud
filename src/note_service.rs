@@ -15,10 +15,11 @@ pub struct Note {
     pub author: String,
     pub category: String,
     pub id: Uuid,
+    pub user_id: Uuid,
 }
 
 impl Note {
-    pub fn new(req: CreateNoteReq) -> Self {
+    pub fn new(req: CreateNoteReq, user_id: Uuid) -> Self {
         let now = Utc::now();
 
         let id = Uuid::now_v7();
@@ -32,6 +33,7 @@ impl Note {
             author: req.author,
             category: req.category,
             id: id,
+            user_id,
         }
     }
 }

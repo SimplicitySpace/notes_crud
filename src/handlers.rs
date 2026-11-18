@@ -1,4 +1,5 @@
 use crate::{
+    auth::{self, AuthUser},
     note_repo::NoteRepo,
     note_service::Note,
     state::AppState,
@@ -17,10 +18,11 @@ use uuid::Uuid;
 
 #[axum::debug_handler]
 pub async fn create_note(
+    auth: AuthUser,
     State(state): State<AppState>,
     Json(request): Json<CreateNoteReq>,
 ) -> (StatusCode, Json<Note>) {
-    let note = Note::new(request);
+    let note = Note::new(request, auth.user_id);
     let result = NoteRepo::save_note(&state.notes, note.clone()).await;
     let val = match result {
         Ok(_) => (StatusCode::CREATED, axum::Json(note.clone())),
@@ -30,10 +32,11 @@ pub async fn create_note(
 }
 #[axum::debug_handler]
 pub async fn read_note(
+    auth: AuthUser,
     State(state): State<AppState>,
     Path(note_id): Path<Uuid>,
 ) -> Result<Json<Note>, StatusCode> {
-    let n = NoteRepo::read_note(&state.notes, note_id).await;
+    let n = NoteRepo::read_note(&state.notes, note_id, auth.user_id).await;
 
     let note = match n {
         Ok(Some(n)) => n,
@@ -44,8 +47,11 @@ pub async fn read_note(
 }
 
 #[axum::debug_handler]
-pub async fn get_all_notes(State(state): State<AppState>) -> Result<Json<Vec<Note>>, StatusCode> {
-    let notes = NoteRepo::get_all_notes(&state.notes)
+pub async fn get_all_notes(
+    auth: AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Note>>, StatusCode> {
+    let notes = NoteRepo::get_all_notes(&state.notes, auth.user_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -53,13 +59,14 @@ pub async fn get_all_notes(State(state): State<AppState>) -> Result<Json<Vec<Not
 }
 #[axum::debug_handler]
 pub async fn update_note(
+    auth: AuthUser,
     State(state): State<AppState>,
     Path(note_id): Path<Uuid>,
     Json(update): Json<UpdateNoteReq>,
 ) -> Result<Json<Note>, StatusCode> {
     let now = Utc::now().to_rfc3339();
 
-    let note = NoteRepo::update_note(&state.notes, note_id, update, now)
+    let note = NoteRepo::update_note(&state.notes, note_id, auth.user_id, update, now)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -67,8 +74,12 @@ pub async fn update_note(
 }
 
 #[axum::debug_handler]
-pub async fn delete_note(State(state): State<AppState>, Path(note_id): Path<Uuid>) -> StatusCode {
-    let result = NoteRepo::delete_note(&state.notes, note_id).await;
+pub async fn delete_note(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(note_id): Path<Uuid>,
+) -> StatusCode {
+    let result = NoteRepo::delete_note(&state.notes, note_id, auth.user_id).await;
 
     match result {
         Ok(r) if r.rows_affected() == 0 => StatusCode::NOT_FOUND,

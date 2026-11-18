@@ -51,8 +51,8 @@ pub struct LoginReq {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: Uuid,  // "subject": who the token is for → the user id
-    pub exp: usize, // expiry as a unix timestamp; the crate rejects expired tokens automatically
+    pub sub: Uuid,
+    pub exp: usize,
 }
 
 #[derive(Serialize)]

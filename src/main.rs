@@ -20,6 +20,7 @@ mod state;
 mod types;
 mod user_repo;
 mod user_service;
+mod auth;
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
